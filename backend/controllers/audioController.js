@@ -1,7 +1,7 @@
 const fileService = require('../services/fileService');
 const { ApiError } = require('../middleware/errorHandler');
 
-exports.processAudio = async (req, res, next) => {
+const processAudio = async (req, res, next) => {
   try {
     if (!req.file) {
       throw ApiError.badRequest('Aucun fichier reçu');
@@ -34,7 +34,7 @@ exports.processAudio = async (req, res, next) => {
   }
 };
 
-exports.downloadFile = async (req, res, next) => {
+const downloadFile = async (req, res, next) => {
   try {
     const fileName = req.params.filename;
 
@@ -67,7 +67,7 @@ exports.downloadFile = async (req, res, next) => {
   }
 };
 
-exports.getFileStatus = async (req, res, next) => {
+const getFileStatus = async (req, res, next) => {
   try {
     const fileName = req.params.filename;
 
@@ -88,4 +88,11 @@ exports.getFileStatus = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+// Exportation CORRECTE des fonctions
+module.exports = {
+  processAudio,
+  downloadFile,
+  getFileStatus
 };

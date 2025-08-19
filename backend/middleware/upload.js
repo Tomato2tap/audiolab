@@ -9,26 +9,31 @@ const storage = multer.diskStorage({
     cb(null, config.uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname || '');
+    cb(null, (file.fieldname || 'file') + '-' + uniqueSuffix + ext);
   }
 });
 
 // Filtrage des fichiers
 const fileFilter = (req, file, cb) => {
+  // Vérification de sécurité : multer peut parfois envoyer un "file" incomplet
+  if (!file || !file.mimetype) {
+    return cb(new ApiError(400, '❌ Aucun fichier ou mimetype invalide'), false);
+  }
+
   if (config.allowedAudioTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new ApiError(400, 'Type de fichier non supporté'), false);
+    cb(new ApiError(400, `❌ Type de fichier non supporté: ${file.mimetype}`), false);
   }
 };
 
 const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
+  storage,
+  fileFilter,
   limits: {
-    fileSize: config.maxFileSize
+    fileSize: config.maxFileSize || 20 * 1024 * 1024 // fallback 20 MB
   }
 });
 

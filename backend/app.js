@@ -22,20 +22,9 @@ app.use('/processed', express.static(path.join(__dirname, 'processed')));
 const frontendPath = path.join(__dirname, '../frontend');
 app.use(express.static(frontendPath));
 
-// 🚦 Catch-all pour toutes les routes frontend
-app.get('*', (req, res, next) => {
-  try {
-    const url = (req.originalUrl || "").toString();
-
-    // ✅ Protection → on ne plante pas si `originalUrl` est undefined
-    if (!url.startsWith('/api')) {
-      return res.sendFile(path.join(frontendPath, 'index.html'));
-    }
-
-    next(); // continue vers les routes API
-  } catch (err) {
-    next(err);
-  }
+// 🚦 Catch-all uniquement pour le frontend
+app.get(/^(?!\/api).*/, (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // ❌ Gestion des erreurs

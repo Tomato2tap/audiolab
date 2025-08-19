@@ -1,37 +1,35 @@
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config();
 const express = require('express');
-const path = require('path');
 const cors = require('cors');
+const path = require('path');
+const { errorHandler } = require('./middleware/errorHandler');
 const audioRoutes = require('./routes/audioRoutes');
-const { errorHandler } = require('./middleware/errorHandler'); // Importation correcte
-
-// Vérification des variables d'environnement
-console.log('✅ Variables d\'environnement:');
-console.log('- SUPABASE_URL:', process.env.SUPABASE_URL ? 'défini' : 'non défini');
-console.log('- NODE_ENV:', process.env.NODE_ENV || 'development');
 
 const app = express();
 
-// Middleware
+// 🔧 Middleware global
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes
+// 🎵 API audio
 app.use('/api/audio', audioRoutes);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'healthy', 
-    timestamp: new Date().toISOString()
-  });
+// 📂 Serve processed files
+app.use('/processed', express.static(path.join(__dirname, 'processed')));
+
+// 🌐 Serve frontend (React/Next ou autre)
+const frontendPath = path.join(__dirname, '../frontend');
+app.use(express.static(frontendPath));
+
+// 🚦 Catch-all uniquement pour le frontend
+app.get(/^(?!\/api).*/, (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-// Error handling
-app.use(errorHandler); // Utilisation correcte
+// ❌ Gestion des erreurs
+app.use(errorHandler);
 
+// 🚀 Lancement du serveur
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));

@@ -20,6 +20,7 @@ exports.uploadAudio = async (req, res, next) => {
 
     await audioFile.save();
 
+    // Renvoie JSON avec l'ID pour traitement ultérieur
     res.status(201).json({
       success: true,
       message: 'Fichier téléchargé avec succès',
@@ -42,19 +43,20 @@ exports.processAudio = async (req, res, next) => {
       throw new ApiError(404, 'Fichier audio non trouvé');
     }
 
-    // Simulation de traitement audio (remplacer par un vrai traitement)
+    // Traitement audio (remplacer par ton vrai traitement)
     const processedFileName = await audioProcessing.process(audioFile);
 
     audioFile.processed = true;
     audioFile.processedPath = path.join(config.processedDir, processedFileName);
     await audioFile.save();
 
+    // Retour JSON compatible frontend
     res.json({
       success: true,
       message: 'Traitement audio terminé',
       data: {
-        downloadUrl: `/processed/${processedFileName}`,
-        outputName: `processed_${audioFile.originalName}`
+        download_url: `/processed/${processedFileName}`,
+        output_name: `processed_${audioFile.originalName}`
       }
     });
   } catch (error) {
@@ -75,7 +77,7 @@ exports.getAudioStatus = async (req, res, next) => {
       success: true,
       data: {
         status: audioFile.processed ? 'processed' : 'processing',
-        downloadUrl: audioFile.processed ? `/processed/${path.basename(audioFile.processedPath)}` : null
+        download_url: audioFile.processed ? `/processed/${path.basename(audioFile.processedPath)}` : null
       }
     });
   } catch (error) {

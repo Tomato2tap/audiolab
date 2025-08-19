@@ -1,16 +1,25 @@
 const path = require('path');
-const os = require('os');
+
+// Vérification des variables d'environnement
+if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+  console.warn('⚠️ Variables Supabase non définies, utilisation des valeurs par défaut');
+}
 
 module.exports = {
-  // Dossiers de stockage
-  UPLOAD_DIR: process.env.UPLOAD_DIR || path.join(__dirname, '../uploads'),
-  OUTPUT_DIR: process.env.OUTPUT_DIR || path.join(__dirname, '../outputs'),
+  // Configuration Supabase avec valeurs par défaut sécurisées
+  SUPABASE: {
+    URL: process.env.SUPABASE_URL || 'https://default.supabase.co',
+    ANON_KEY: process.env.SUPABASE_ANON_KEY || 'default-anon-key',
+    BUCKET_NAME: process.env.SUPABASE_BUCKET || 'audio-files',
+    UPLOAD_BUCKET: process.env.SUPABASE_UPLOAD_BUCKET || 'uploads',
+    OUTPUT_BUCKET: process.env.SUPABASE_OUTPUT_BUCKET || 'processed'
+  },
   
   // Extensions autorisées
   ALLOWED_EXTENSIONS: new Set(['.mp3', '.MP3']),
   
   // Taille maximale des fichiers (20MB)
-  MAX_FILE_SIZE: process.env.MAX_FILE_SIZE || 20 * 1024 * 1024,
+  MAX_FILE_SIZE: parseInt(process.env.MAX_FILE_SIZE) || 20 * 1024 * 1024,
   
   // Types MIME autorisés
   ALLOWED_MIME_TYPES: new Set([

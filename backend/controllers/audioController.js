@@ -1,6 +1,13 @@
 const supabase = require("../config/supabase");
 const { v4: uuidv4 } = require("uuid");
 
+// 🔧 Fonction utilitaire pour nettoyer le nom du fichier
+const sanitizeFileName = (name) => {
+  return name
+    .replace(/[^a-zA-Z0-9._-]/g, "_") // remplace caractères spéciaux par "_"
+    .toLowerCase();
+};
+
 // 📥 Upload audio vers Supabase
 exports.uploadAudio = async (req, res, next) => {
   try {
@@ -8,7 +15,8 @@ exports.uploadAudio = async (req, res, next) => {
       return res.status(400).json({ error: "Aucun fichier reçu" });
     }
 
-    const fileName = `${uuidv4()}-${req.file.originalname}`;
+    const safeName = sanitizeFileName(req.file.originalname);
+    const fileName = `${uuidv4()}-${safeName}`;
 
     // 🔼 Upload du fichier brut dans Supabase Storage
     const { error: uploadError } = await supabase.storage
@@ -45,12 +53,11 @@ exports.uploadAudio = async (req, res, next) => {
   }
 };
 
-// ⚙️ Marquer un fichier comme "traité" (placeholder pour ton futur traitement)
+// ⚙️ Marquer un fichier comme "traité"
 exports.processAudio = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Exemple : mise à jour simple en base
     const { data, error } = await supabase
       .from("audiofiles")
       .update({ processed: true })
@@ -76,7 +83,6 @@ exports.getAudioStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // 🔎 Cherche en base
     const { data, error } = await supabase
       .from("audiofiles")
       .select("*")

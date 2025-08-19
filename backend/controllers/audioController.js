@@ -1,98 +1,138 @@
-const fileService = require('../services/fileService');
-const { ApiError } = require('../middleware/errorHandler');
+const AudioFile = require('../models/AudioFile');
+const audioProcessing = require('../services/audioProcessing');
+const ApiError = require('../middleware/ApiError');
+const path = require('path');
+const config = require('../config/config');
+const supabase = require("../config/supabase");
+const { v4: uuidv4 } = require("uuid");
 
-const processAudio = async (req, res, next) => {
+// 📥 Upload audio
+exports.uploadAudio = async (req, res, next) => {
   try {
     if (!req.file) {
-      throw ApiError.badRequest('Aucun fichier reçu');
+      throw new ApiError(400, 'Aucun fichier téléchargé');
     }
 
-    // Lire le buffer du fichier
-    const fileBuffer = req.file.buffer;
-    const originalName = req.file.originalname;
+    const audioFile = new AudioFile({
+      originalName: req.file.originalname,
+      storedName: req.file.filename,
+      path: req.file.path,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
+    if (!req.file) return res.status(400).json({ error: "Aucun fichier reçu" });
 
-    // Traiter le fichier avec Supabase
-    const outputFileName = await fileService.processFile(fileBuffer, originalName);
+    await audioFile.save();
 
-    // Générer une URL signée pour le téléchargement
-    const downloadUrl = await fileService.getSignedUrl(
-      process.env.SUPABASE_OUTPUT_BUCKET || 'processed',
-      outputFileName,
-      3600 // 1 heure d'expiration
-    );
-
-    res.json({
+    // Renvoie JSON avec l'ID pour traitement ultérieur
+    res.status(201).json({
       success: true,
+      message: 'Fichier téléchargé avec succès',
       data: {
-        download_url: downloadUrl,
-        output_name: outputFileName,
-        expires_at: new Date(Date.now() + 3600 * 1000).toISOString()
+        id: audioFile._id,
+        originalName: audioFile.originalName
       }
     });
   } catch (error) {
     next(error);
   }
 };
+    const fileName = `${uuidv4()}-${req.file.originalname}`;
 
-const downloadFile = async (req, res, next) => {
+exports.processAudio = async (req, res, next) => {
   try {
-    const fileName = req.params.filename;
+    const { id } = req.params;
+    const audioFile = await AudioFile.findById(id);
+    // Envoi vers Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from("audiofiles")
+      .upload(fileName, req.file.buffer, {
+        contentType: req.file.mimetype,
+      });
 
-    // Vérifier si le fichier existe
-    const fileExists = await fileService.fileExists(
-      process.env.SUPABASE_OUTPUT_BUCKET || 'processed',
-      fileName
-    );
-
-    if (!fileExists) {
-      throw ApiError.notFound('Fichier non trouvé');
+    if (!audioFile) {
+      throw new ApiError(404, 'Fichier audio non trouvé');
     }
+    if (uploadError) throw uploadError;
 
-    // Télécharger le fichier depuis Supabase
-    const fileBuffer = await fileService.downloadFile(
-      process.env.SUPABASE_OUTPUT_BUCKET || 'processed',
-      fileName
-    );
+    // Traitement audio (remplacer par ton vrai traitement)
+    const processedFileName = await audioProcessing.process(audioFile);
+    // Enregistrement métadonnées dans la table "audiofiles"
+    const { data, error: dbError } = await supabase
+      .from("audiofiles")
+      .insert([
+        {
+          original_name: req.file.originalname,
+          stored_name: fileName,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          processed: false,
+        },
+      ])
+      .select();
 
-    // Envoyer le fichier
-    res.set({
-      'Content-Type': 'audio/mpeg',
-      'Content-Disposition': `attachment; filename="${fileName}"`,
-      'Content-Length': fileBuffer.size
+    audioFile.processed = true;
+    audioFile.processedPath = path.join(config.processedDir, processedFileName);
+    await audioFile.save();
+    if (dbError) throw dbError;
+
+    // Retour JSON compatible frontend
+    res.json({
+    res.status(201).json({
+      success: true,
+      message: 'Traitement audio terminé',
+      data: {
+        download_url: `/processed/${processedFileName}`,
+        output_name: `processed_${audioFile.originalName}`
+      }
+      message: "Fichier uploadé avec succès",
+      data: data[0],
     });
-
-    res.send(fileBuffer);
   } catch (error) {
     next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-const getFileStatus = async (req, res, next) => {
+// 📤 Vérifier statut + générer lien
+exports.getAudioStatus = async (req, res, next) => {
   try {
-    const fileName = req.params.filename;
+    const { id } = req.params;
+    const audioFile = await AudioFile.findById(id);
 
-    const fileInfo = await fileService.getFileInfo(
-      process.env.SUPABASE_OUTPUT_BUCKET || 'processed',
-      fileName
-    );
+    if (!audioFile) {
+      throw new ApiError(404, 'Fichier audio non trouvé');
+    const { data, error } = await supabase
+      .from("audiofiles")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: "Fichier non trouvé" });
+
+    // Générer un lien temporaire (1h)
+    let download_url = null;
+    if (data.processed || data.stored_name) {
+      const { data: signedUrl } = await supabase.storage
+        .from("audiofiles")
+        .createSignedUrl(data.processed_path || data.stored_name, 3600);
+      download_url = signedUrl?.signedUrl || null;
+    }
 
     res.json({
       success: true,
       data: {
-        name: fileInfo.name,
-        size: fileInfo.metadata.size,
-        created_at: fileInfo.created_at,
-        last_accessed: fileInfo.last_accessed_at
+        status: audioFile.processed ? 'processed' : 'processing',
+        download_url: audioFile.processed ? `/processed/${path.basename(audioFile.processedPath)}` : null
       }
+        status: data.processed ? "processed" : "processing",
+        download_url,
+      },
     });
   } catch (error) {
     next(error);
+  } catch (err) {
+    next(err);
   }
-};
-
-// Exportation CORRECTE des fonctions
-module.exports = {
-  processAudio,
-  downloadFile,
-  getFileStatus
 };

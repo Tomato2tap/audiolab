@@ -1,24 +1,14 @@
-require('dotenv').config({ path: '../.env' }); // Chemin correct pour le .env
+require('dotenv').config({ path: '../.env' });
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const audioRoutes = require('./routes/audioRoutes');
-const { errorHandler } = require('./middleware/errorHandler');
+const { errorHandler } = require('./middleware/errorHandler'); // Importation correcte
 
-// Vérification des variables d'environnement REQUISES
-const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
-const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-if (missingEnvVars.length > 0) {
-  console.error('❌ Variables d\'environnement manquantes:', missingEnvVars);
-  console.error('💡 Assurez-vous de les définir dans Render > Environment');
-  process.exit(1);
-}
-
-console.log('✅ Variables d\'environnement chargées:', {
-  SUPABASE_URL: process.env.SUPABASE_URL ? 'défini' : 'non défini',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ? 'défini' : 'non défini'
-});
+// Vérification des variables d'environnement
+console.log('✅ Variables d\'environnement:');
+console.log('- SUPABASE_URL:', process.env.SUPABASE_URL ? 'défini' : 'non défini');
+console.log('- NODE_ENV:', process.env.NODE_ENV || 'development');
 
 const app = express();
 
@@ -34,16 +24,14 @@ app.use('/api/audio', audioRoutes);
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'healthy', 
-    timestamp: new Date().toISOString(),
-    supabase: process.env.SUPABASE_URL ? 'configuré' : 'non configuré'
+    timestamp: new Date().toISOString()
   });
 });
 
 // Error handling
-app.use(errorHandler);
+app.use(errorHandler); // Utilisation correcte
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Environnement: ${process.env.NODE_ENV || 'development'}`);
 });

@@ -1,15 +1,37 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const audioController = require("../controllers/audioController");
-const upload = require("../middleware/upload");
+const upload = require('../middleware/upload');
 
-// 📥 Upload d'un fichier audio (vers Supabase Storage)
-router.post("/upload", upload.single("file"), audioController.uploadAudio);
+// Debug: Vérifier que le middleware upload existe
+console.log('Middleware upload:', typeof upload.single);
 
-// ⚙️ (Optionnel) Traiter un fichier déjà uploadé
-router.post("/process/:id", audioController.processAudio);
+// Importation avec vérification
+let audioController;
+try {
+  audioController = require('../controllers/audioController');
+  console.log('✅ audioController chargé:', Object.keys(audioController));
+} catch (error) {
+  console.error('❌ Erreur chargement audioController:', error);
+  process.exit(1);
+}
 
-// 📊 Vérifier le statut ou récupérer les infos d'un fichier audio
-router.get("/status/:id", audioController.getAudioStatus);
+// Vérification que les fonctions existent
+if (!audioController.processAudio) {
+  console.error('❌ processAudio non trouvé dans audioController');
+  process.exit(1);
+}
+
+if (!audioController.downloadFile) {
+  console.error('❌ downloadFile non trouvé dans audioController');
+}
+
+// Routes avec vérification
+router.post('/process', upload.single('file'), audioController.processAudio);
+router.get('/download/:filename', audioController.downloadFile);
+
+// Route de test
+router.get('/test', (req, res) => {
+  res.json({ message: 'API fonctionne!', timestamp: new Date().toISOString() });
+});
 
 module.exports = router;

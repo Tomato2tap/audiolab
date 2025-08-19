@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: audiolab-frontend
+    runtime: static
+    buildCommand: npm install && npm run build
+    publish: /
+    env: static

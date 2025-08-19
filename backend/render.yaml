@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: audiolab-api
+    runtime: node
+    buildCommand: npm install
+    startCommand: node app.js
+    env: node
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: UPLOAD_DIR
+        value: /tmp/uploads
+      - key: OUTPUT_DIR
+        value: /tmp/outputs

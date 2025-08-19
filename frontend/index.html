@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>AudioLab - Traitement Professionnel de Fichiers Musicaux</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="background-animation">
+    <div class="music-note note-1">♪</div>
+    <div class="music-note note-2">♫</div>
+    <div class="music-note note-3">♩</div>
+    <div class="music-note note-4">♬</div>
+    <div class="music-note note-5">♭</div>
+  </div>
+
+  <div class="container">
+    <header>
+      <div class="logo">
+        <i class="fas fa-wave-square"></i>
+        <span>AudioLab</span>
+      </div>
+      <h1>Transformez votre musique en une œuvre maîtresse</h1>
+      <p class="subtitle">Déposez votre fichier audio et laissez notre IA le perfectionner</p>
+    </header>
+
+    <main>
+      <div class="upload-container">
+        <label class="dropzone" id="dropzone">
+          <div class="dropzone-icon">
+            <i class="fas fa-cloud-upload-alt"></i>
+          </div>
+          <div class="dropzone-content">
+            <strong>Glissez-déposez</strong> votre fichier audio ici<br/>
+            <span class="or-text">ou</span>
+            <button class="browse-btn">Parcourir les fichiers</button>
+            <p class="formats">Formats supportés: MP3, WAV, FLAC, AAC</p>
+          </div>
+          <input type="file" id="fileInput" accept="audio/*" />
+        </label>
+
+        <div class="status-container">
+          <div id="status" class="status"></div>
+          <div class="progress-bar">
+            <div class="progress"></div>
+          </div>
+        </div>
+
+        <div id="result" class="result"></div>
+      </div>
+    </main>
+
+    <footer>
+      <div class="features">
+        <div class="feature">
+          <i class="fas fa-magic"></i>
+          <h3>Amélioration Audio</h3>
+          <p>Suppression du bruit et amélioration de la qualité</p>
+        </div>
+        <div class="feature">
+          <i class="fas fa-sliders-h"></i>
+          <h3>Égalisation</h3>
+          <p>Balance parfaite des fréquences</p>
+        </div>
+        <div class="feature">
+          <i class="fas fa-bolt"></i>
+          <h3>Rapide</h3>
+          <p>Traitement en temps réel</p>
+        </div>
+      </div>
+      <p class="copyright">© 2023 AudioLab - Tous droits réservés</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

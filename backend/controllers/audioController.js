@@ -1,115 +1,91 @@
-const supabase = require("../config/supabase");
-const { v4: uuidv4 } = require("uuid");
+const fileService = require('../services/fileService');
+const { ApiError } = require('../middleware/errorHandler');
 
-// 🔧 Fonction utilitaire pour nettoyer le nom du fichier
-const sanitizeFileName = (name) => {
-  return name
-    .replace(/[^a-zA-Z0-9._-]/g, "_") // remplace caractères spéciaux par "_"
-    .toLowerCase();
-};
-
-// 📥 Upload audio vers Supabase
-exports.uploadAudio = async (req, res, next) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "Aucun fichier reçu" });
-    }
-
-    const safeName = sanitizeFileName(req.file.originalname);
-    const fileName = `${uuidv4()}-${safeName}`;
-
-    // 🔼 Upload du fichier brut dans Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from("audiofiles")
-      .upload(fileName, req.file.buffer, {
-        contentType: req.file.mimetype,
-      });
-
-    if (uploadError) throw uploadError;
-
-    // 💾 Insertion des métadonnées en base
-    const { data, error: dbError } = await supabase
-      .from("audiofiles")
-      .insert([
-        {
-          original_name: req.file.originalname,
-          stored_name: fileName,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
-          processed: false,
-        },
-      ])
-      .select();
-
-    if (dbError) throw dbError;
-
-    res.status(201).json({
-      success: true,
-      message: "Fichier uploadé avec succès",
-      data: data[0],
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// ⚙️ Marquer un fichier comme "traité"
 exports.processAudio = async (req, res, next) => {
   try {
-    const { id } = req.params;
-
-    const { data, error } = await supabase
-      .from("audiofiles")
-      .update({ processed: true })
-      .eq("id", id)
-      .select();
-
-    if (error || !data.length) {
-      return res.status(404).json({ error: "Fichier introuvable ou erreur de traitement" });
+    if (!req.file) {
+      throw ApiError.badRequest('Aucun fichier reçu');
     }
 
-    res.json({
-      success: true,
-      message: "Fichier marqué comme traité",
-      data: data[0],
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+    // Lire le buffer du fichier
+    const fileBuffer = req.file.buffer;
+    const originalName = req.file.originalname;
 
-// 📤 Vérifier statut + générer lien signé
-exports.getAudioStatus = async (req, res, next) => {
-  try {
-    const { id } = req.params;
+    // Traiter le fichier avec Supabase
+    const outputFileName = await fileService.processFile(fileBuffer, originalName);
 
-    const { data, error } = await supabase
-      .from("audiofiles")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error || !data) {
-      return res.status(404).json({ error: "Fichier non trouvé" });
-    }
-
-    // 🔗 Générer un lien temporaire (1h)
-    let download_url = null;
-    if (data.stored_name) {
-      const { data: signedUrl } = await supabase.storage
-        .from("audiofiles")
-        .createSignedUrl(data.stored_name, 3600);
-      download_url = signedUrl?.signedUrl || null;
-    }
+    // Générer une URL signée pour le téléchargement
+    const downloadUrl = await fileService.getSignedUrl(
+      process.env.SUPABASE_OUTPUT_BUCKET || 'processed',
+      outputFileName,
+      3600 // 1 heure d'expiration
+    );
 
     res.json({
       success: true,
       data: {
-        status: data.processed ? "processed" : "processing",
-        download_url,
-      },
+        download_url: downloadUrl,
+        output_name: outputFileName,
+        expires_at: new Date(Date.now() + 3600 * 1000).toISOString()
+      }
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.downloadFile = async (req, res, next) => {
+  try {
+    const fileName = req.params.filename;
+
+    // Vérifier si le fichier existe
+    const fileExists = await fileService.fileExists(
+      process.env.SUPABASE_OUTPUT_BUCKET || 'processed',
+      fileName
+    );
+
+    if (!fileExists) {
+      throw ApiError.notFound('Fichier non trouvé');
+    }
+
+    // Télécharger le fichier depuis Supabase
+    const fileBuffer = await fileService.downloadFile(
+      process.env.SUPABASE_OUTPUT_BUCKET || 'processed',
+      fileName
+    );
+
+    // Envoyer le fichier
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Length': fileBuffer.size
+    });
+
+    res.send(fileBuffer);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getFileStatus = async (req, res, next) => {
+  try {
+    const fileName = req.params.filename;
+
+    const fileInfo = await fileService.getFileInfo(
+      process.env.SUPABASE_OUTPUT_BUCKET || 'processed',
+      fileName
+    );
+
+    res.json({
+      success: true,
+      data: {
+        name: fileInfo.name,
+        size: fileInfo.metadata.size,
+        created_at: fileInfo.created_at,
+        last_accessed: fileInfo.last_accessed_at
+      }
+    });
+  } catch (error) {
+    next(error);
   }
 };

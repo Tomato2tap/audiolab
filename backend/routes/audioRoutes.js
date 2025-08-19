@@ -1,8 +1,14 @@
+const express = require('express');
 const express = require("express");
 const router = express.Router();
+const audioController = require('../controllers/audioController');
+const upload = require('../middleware/upload');
 const audioController = require("../controllers/audioController");
 const upload = require("../middleware/upload");
 
+router.post('/upload', upload.single('file'), audioController.uploadAudio);
+router.post('/process/:id', audioController.processAudio);
+router.get('/status/:id', audioController.getAudioStatus);
 // 📥 Upload d'un fichier audio (vers Supabase Storage)
 router.post("/upload", upload.single("file"), audioController.uploadAudio);
 

@@ -1,14 +1,16 @@
 const supabase = require("../config/supabase");
 const { v4: uuidv4 } = require("uuid");
 
-// 📥 Upload audio
+// 📥 Upload audio vers Supabase
 exports.uploadAudio = async (req, res, next) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "Aucun fichier reçu" });
+    if (!req.file) {
+      return res.status(400).json({ error: "Aucun fichier reçu" });
+    }
 
     const fileName = `${uuidv4()}-${req.file.originalname}`;
 
-    // Envoi vers Supabase Storage
+    // 🔼 Upload du fichier brut dans Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from("audiofiles")
       .upload(fileName, req.file.buffer, {
@@ -17,7 +19,7 @@ exports.uploadAudio = async (req, res, next) => {
 
     if (uploadError) throw uploadError;
 
-    // Enregistrement métadonnées dans la table "audiofiles"
+    // 💾 Insertion des métadonnées en base
     const { data, error: dbError } = await supabase
       .from("audiofiles")
       .insert([
@@ -43,25 +45,54 @@ exports.uploadAudio = async (req, res, next) => {
   }
 };
 
-// 📤 Vérifier statut + générer lien
+// ⚙️ Marquer un fichier comme "traité" (placeholder pour ton futur traitement)
+exports.processAudio = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Exemple : mise à jour simple en base
+    const { data, error } = await supabase
+      .from("audiofiles")
+      .update({ processed: true })
+      .eq("id", id)
+      .select();
+
+    if (error || !data.length) {
+      return res.status(404).json({ error: "Fichier introuvable ou erreur de traitement" });
+    }
+
+    res.json({
+      success: true,
+      message: "Fichier marqué comme traité",
+      data: data[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// 📤 Vérifier statut + générer lien signé
 exports.getAudioStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
 
+    // 🔎 Cherche en base
     const { data, error } = await supabase
       .from("audiofiles")
       .select("*")
       .eq("id", id)
       .single();
 
-    if (error || !data) return res.status(404).json({ error: "Fichier non trouvé" });
+    if (error || !data) {
+      return res.status(404).json({ error: "Fichier non trouvé" });
+    }
 
-    // Générer un lien temporaire (1h)
+    // 🔗 Générer un lien temporaire (1h)
     let download_url = null;
-    if (data.processed || data.stored_name) {
+    if (data.stored_name) {
       const { data: signedUrl } = await supabase.storage
         .from("audiofiles")
-        .createSignedUrl(data.processed_path || data.stored_name, 3600);
+        .createSignedUrl(data.stored_name, 3600);
       download_url = signedUrl?.signedUrl || null;
     }
 

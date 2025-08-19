@@ -1,6 +1,6 @@
 const AudioFile = require('../models/AudioFile');
 const audioProcessing = require('../services/audioProcessing');
-const ApiError = require('../utils/ApiError');
+const ApiError = require('../middleware/ApiError');
 const path = require('path');
 const config = require('../config/config');
 

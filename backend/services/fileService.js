@@ -1,159 +1,205 @@
-const fs = require('fs').promises;
-const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 const { v4: uuidv4 } = require('uuid');
 const config = require('../config/config');
 const { ApiError } = require('../middleware/errorHandler');
 
 class FileService {
   constructor() {
-    this.ensureDirectoriesExist();
+    this.supabase = createClient(
+      config.SUPABASE.URL,
+      config.SUPABASE.ANON_KEY
+    );
+    this.initialized = this.initializeBuckets();
   }
 
-  async ensureDirectoriesExist() {
+  async initializeBuckets() {
     try {
-      await fs.mkdir(config.UPLOAD_DIR, { recursive: true });
-      await fs.mkdir(config.OUTPUT_DIR, { recursive: true });
-      console.log('📁 Dossiers de stockage créés avec succès');
+      // Vérifier et créer les buckets si nécessaire
+      const { data: buckets, error } = await this.supabase
+        .storage
+        .listBuckets();
+
+      if (error) throw error;
+
+      const bucketNames = buckets.map(b => b.name);
+      
+      if (!bucketNames.includes(config.SUPABASE.UPLOAD_BUCKET)) {
+        await this.createBucket(config.SUPABASE.UPLOAD_BUCKET);
+      }
+
+      if (!bucketNames.includes(config.SUPABASE.OUTPUT_BUCKET)) {
+        await this.createBucket(config.SUPABASE.OUTPUT_BUCKET);
+      }
+
+      console.log('✅ Buckets Supabase initialisés');
     } catch (error) {
-      console.error('❌ Erreur création des dossiers:', error);
+      console.error('❌ Erreur initialisation Supabase:', error);
       throw ApiError.internalError('Erreur configuration du stockage');
     }
   }
 
-  async validateFileSize(filePath, maxSize = config.MAX_FILE_SIZE) {
+  async createBucket(bucketName) {
+    const { error } = await this.supabase
+      .storage
+      .createBucket(bucketName, {
+        public: false,
+        fileSizeLimit: config.MAX_FILE_SIZE
+      });
+
+    if (error) throw error;
+    console.log(`✅ Bucket créé: ${bucketName}`);
+  }
+
+  async uploadFile(bucketName, fileBuffer, fileName, mimeType = 'audio/mpeg') {
     try {
-      const stats = await fs.stat(filePath);
-      if (stats.size > maxSize) {
-        await this.deleteFile(filePath);
-        throw ApiError.badRequest(`Fichier trop volumineux. Maximum: ${maxSize / 1024 / 1024}MB`);
-      }
+      const { data, error } = await this.supabase
+        .storage
+        .from(bucketName)
+        .upload(fileName, fileBuffer, {
+          contentType: mimeType,
+          upsert: false
+        });
+
+      if (error) throw error;
+
+      return data;
+    } catch (error) {
+      console.error('❌ Erreur upload Supabase:', error);
+      throw ApiError.internalError('Erreur lors de l\'upload du fichier');
+    }
+  }
+
+  async downloadFile(bucketName, fileName) {
+    try {
+      const { data, error } = await this.supabase
+        .storage
+        .from(bucketName)
+        .download(fileName);
+
+      if (error) throw error;
+
+      return data;
+    } catch (error) {
+      console.error('❌ Erreur download Supabase:', error);
+      throw ApiError.notFound('Fichier non trouvé');
+    }
+  }
+
+  async getSignedUrl(bucketName, fileName, expiresIn = 3600) {
+    try {
+      const { data, error } = await this.supabase
+        .storage
+        .from(bucketName)
+        .createSignedUrl(fileName, expiresIn);
+
+      if (error) throw error;
+
+      return data.signedUrl;
+    } catch (error) {
+      console.error('❌ Erreur génération URL signée:', error);
+      throw ApiError.internalError('Erreur génération lien de téléchargement');
+    }
+  }
+
+  async deleteFile(bucketName, fileName) {
+    try {
+      const { error } = await this.supabase
+        .storage
+        .from(bucketName)
+        .remove([fileName]);
+
+      if (error) throw error;
+
+      console.log(`🗑️ Fichier supprimé: ${fileName}`);
       return true;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async validateAudioFile(filePath) {
-    // Ici vous pourriez ajouter une validation du fichier audio
-    // en utilisant une librairie comme music-metadata
-    try {
-      // Simulation de validation
-      const stats = await fs.stat(filePath);
-      if (stats.size === 0) {
-        throw ApiError.badRequest('Fichier audio corrompu ou vide');
-      }
-      return true;
-    } catch (error) {
-      await this.deleteFile(filePath);
-      throw error;
-    }
-  }
-
-  async processFile(inputPath, originalName) {
-    try {
-      // Validation du fichier
-      await this.validateFileSize(inputPath);
-      await this.validateAudioFile(inputPath);
-
-      // Génération d'un nom de fichier unique
-      const fileExt = path.extname(originalName) || '.mp3';
-      const baseName = path.parse(originalName).name;
-      const uid = uuidv4().substring(0, 8);
-      const outputName = `${this.sanitizeFileName(baseName)}_${uid}${fileExt}`;
-      const outputPath = path.join(config.OUTPUT_DIR, outputName);
-
-      // Traitement du fichier (simulation - à remplacer par du vrai traitement)
-      await this.copyFileWithProcessing(inputPath, outputPath);
-
-      // Nettoyage du fichier temporaire d'upload
-      await this.deleteFile(inputPath);
-
-      console.log(`✅ Fichier traité: ${outputName}`);
-      return outputPath;
-
-    } catch (error) {
-      // Nettoyage en cas d'erreur
-      await this.cleanupOnError(inputPath);
-      throw error;
-    }
-  }
-
-  async copyFileWithProcessing(sourcePath, destPath) {
-    try {
-      // Simulation de traitement audio
-      // Dans une vraie implémentation, utilisez FFmpeg ou une lib audio
-      const fileData = await fs.readFile(sourcePath);
-      
-      // Ici vous pourriez ajouter du traitement audio réel
-      // Ex: const processedData = await this.processAudio(fileData);
-      
-      await fs.writeFile(destPath, fileData);
-      
-      return destPath;
-    } catch (error) {
-      throw ApiError.internalError('Erreur lors du traitement du fichier audio');
-    }
-  }
-
-  async processAudio(audioBuffer) {
-    // Placeholder pour le traitement audio réel
-    // À implémenter avec FFmpeg, WebAudio API, ou une lib spécialisée
-    return audioBuffer; // Retourne les données non modifiées pour l'instant
-  }
-
-  async deleteFile(filePath) {
-    try {
-      if (await this.fileExists(filePath)) {
-        await fs.unlink(filePath);
-        console.log(`🗑️ Fichier supprimé: ${path.basename(filePath)}`);
-      }
     } catch (error) {
       console.warn('⚠️ Impossible de supprimer le fichier:', error.message);
+      return false;
     }
   }
 
-  async fileExists(filePath) {
+  async fileExists(bucketName, fileName) {
     try {
-      await fs.access(filePath);
-      return true;
+      const { data, error } = await this.supabase
+        .storage
+        .from(bucketName)
+        .list('', {
+          limit: 1,
+          offset: 0,
+          search: fileName
+        });
+
+      if (error) throw error;
+
+      return data.length > 0 && data.some(file => file.name === fileName);
     } catch {
       return false;
     }
   }
 
-  async getFileStats(filePath) {
+  async processFile(fileBuffer, originalName) {
     try {
-      return await fs.stat(filePath);
+      // Validation du fichier
+      if (fileBuffer.length > config.MAX_FILE_SIZE) {
+        throw ApiError.badRequest(`Fichier trop volumineux. Maximum: ${config.MAX_FILE_SIZE / 1024 / 1024}MB`);
+      }
+
+      // Génération d'un nom de fichier unique
+      const fileExt = '.mp3'; // Forcer l'extension MP3 pour la sortie
+      const baseName = this.sanitizeFileName(originalName.replace(/\.[^/.]+$/, ""));
+      const uid = uuidv4().substring(0, 8);
+      const outputName = `${baseName}_${uid}${fileExt}`;
+
+      // Traitement du fichier (simulation)
+      const processedBuffer = await this.processAudio(fileBuffer);
+
+      // Upload vers Supabase
+      await this.uploadFile(
+        config.SUPABASE.OUTPUT_BUCKET, 
+        processedBuffer, 
+        outputName,
+        'audio/mpeg'
+      );
+
+      console.log(`✅ Fichier traité et uploadé: ${outputName}`);
+      return outputName;
+
     } catch (error) {
-      throw ApiError.notFound('Fichier non trouvé');
+      console.error('❌ Erreur traitement fichier:', error);
+      throw error;
     }
   }
 
-  async cleanupOnError(filePath) {
-    try {
-      if (filePath && await this.fileExists(filePath)) {
-        await this.deleteFile(filePath);
-      }
-    } catch (cleanupError) {
-      console.error('❌ Erreur lors du nettoyage:', cleanupError);
-    }
+  async processAudio(audioBuffer) {
+    // Simulation de traitement audio
+    // Dans une vraie implémentation, utilisez FFmpeg ou une lib audio
+    // Pour l'instant, on retourne le buffer tel quel
+    return audioBuffer;
   }
 
   sanitizeFileName(name) {
     return name
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Remove accents
-      .replace(/[^a-zA-Z0-9_-]/g, '_') // Replace special chars
-      .substring(0, 100); // Limit length
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .substring(0, 100);
   }
 
-  async getAvailableDiskSpace() {
+  async getFileInfo(bucketName, fileName) {
     try {
-      const stats = await fs.statfs(config.UPLOAD_DIR);
-      return stats.bsize * stats.bfree;
+      const { data, error } = await this.supabase
+        .storage
+        .from(bucketName)
+        .list('', {
+          search: fileName
+        });
+
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('Fichier non trouvé');
+
+      return data[0];
     } catch (error) {
-      console.warn('⚠️ Impossible de vérifier l\'espace disque:', error);
-      return null;
+      throw ApiError.notFound('Information fichier non disponible');
     }
   }
 }

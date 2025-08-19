@@ -1,5 +1,4 @@
 const path = require("path");
-const os = require("os");
 
 module.exports = {
   // 📂 Dossiers de stockage
@@ -32,5 +31,12 @@ module.exports = {
     BITRATE: "192k",
     SAMPLE_RATE: 44100,
     CHANNELS: 2,
+  },
+
+  // 🔑 Configuration Supabase
+  SUPABASE: {
+    URL: process.env.SUPABASE_URL,
+    ANON_KEY: process.env.SUPABASE_ANON_KEY,
+    BUCKET: process.env.SUPABASE_BUCKET || "audiofiles",
   },
 };

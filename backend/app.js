@@ -23,11 +23,17 @@ app.use('/api/audio', audioRoutes);
 app.use('/processed', express.static(path.join(__dirname, 'processed')));
 
 // Serve frontend static files
-app.use(express.static(path.join(__dirname, '../frontend')));
+const frontendPath = path.join(__dirname, '../frontend');
+app.use(express.static(frontendPath));
+
+// Ensure CSS, JS, assets are accessible
+app.use('/css', express.static(path.join(frontendPath, 'css')));
+app.use('/js', express.static(path.join(frontendPath, 'js')));
+app.use('/assets', express.static(path.join(frontendPath, 'assets')));
 
 // For any other route, send the frontend index.html
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/index.html'));
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Error handling

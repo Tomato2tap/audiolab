@@ -4,6 +4,7 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
+    "build": "echo \"No build needed for Node.js\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -14,6 +15,6 @@
     "dotenv": "^16.0.3"
   },
   "engines": {
-    "node": "18.x"
+    "node": "20.x"
   }
 }

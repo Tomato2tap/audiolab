@@ -25,8 +25,9 @@ app.use(express.static(frontendPath));
 // 🚦 Catch-all pour toutes les routes frontend
 app.get('*', (req, res, next) => {
   try {
-    const url = req.originalUrl || "";
+    const url = (req.originalUrl || "").toString();
 
+    // ✅ Protection → on ne plante pas si `originalUrl` est undefined
     if (!url.startsWith('/api')) {
       return res.sendFile(path.join(frontendPath, 'index.html'));
     }

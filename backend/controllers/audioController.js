@@ -20,7 +20,6 @@ exports.uploadAudio = async (req, res, next) => {
       size: req.file.size,
       mimetype: req.file.mimetype
     });
-    if (!req.file) return res.status(400).json({ error: "Aucun fichier reçu" });
 
     await audioFile.save();
 
@@ -37,61 +36,61 @@ exports.uploadAudio = async (req, res, next) => {
     next(error);
   }
 };
-    const fileName = `${uuidv4()}-${req.file.originalname}`;
 
+// ⚙️ Traitement audio
 exports.processAudio = async (req, res, next) => {
   try {
     const { id } = req.params;
     const audioFile = await AudioFile.findById(id);
-    // Envoi vers Supabase Storage
+
+    if (!audioFile) {
+      throw new ApiError(404, 'Fichier audio non trouvé');
+    }
+
+    const fileName = `${uuidv4()}-${req.file.originalname}`;
+
+    // Upload vers Supabase
     const { error: uploadError } = await supabase.storage
       .from("audiofiles")
       .upload(fileName, req.file.buffer, {
         contentType: req.file.mimetype,
       });
 
-    if (!audioFile) {
-      throw new ApiError(404, 'Fichier audio non trouvé');
-    }
     if (uploadError) throw uploadError;
 
-    // Traitement audio (remplacer par ton vrai traitement)
+    // Traitement audio (exemple)
     const processedFileName = await audioProcessing.process(audioFile);
-    // Enregistrement métadonnées dans la table "audiofiles"
+
+    // Sauvegarde metadata dans la table
     const { data, error: dbError } = await supabase
       .from("audiofiles")
-      .insert([
-        {
-          original_name: req.file.originalname,
-          stored_name: fileName,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
-          processed: false,
-        },
-      ])
+      .insert([{
+        original_name: req.file.originalname,
+        stored_name: fileName,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        processed: false,
+      }])
       .select();
+
+    if (dbError) throw dbError;
 
     audioFile.processed = true;
     audioFile.processedPath = path.join(config.processedDir, processedFileName);
     await audioFile.save();
-    if (dbError) throw dbError;
 
-    // Retour JSON compatible frontend
-    res.json({
+    // Retour JSON
     res.status(201).json({
       success: true,
       message: 'Traitement audio terminé',
       data: {
         download_url: `/processed/${processedFileName}`,
-        output_name: `processed_${audioFile.originalName}`
+        output_name: `processed_${audioFile.originalName}`,
+        supabase_entry: data[0]
       }
-      message: "Fichier uploadé avec succès",
-      data: data[0],
     });
   } catch (error) {
     next(error);
-  } catch (err) {
-    next(err);
   }
 };
 
@@ -103,15 +102,20 @@ exports.getAudioStatus = async (req, res, next) => {
 
     if (!audioFile) {
       throw new ApiError(404, 'Fichier audio non trouvé');
+    }
+
+    // Vérifie en base Supabase
     const { data, error } = await supabase
       .from("audiofiles")
       .select("*")
       .eq("id", id)
       .single();
 
-    if (error || !data) return res.status(404).json({ error: "Fichier non trouvé" });
+    if (error || !data) {
+      return res.status(404).json({ error: "Fichier non trouvé" });
+    }
 
-    // Générer un lien temporaire (1h)
+    // Génère un lien temporaire (1h)
     let download_url = null;
     if (data.processed || data.stored_name) {
       const { data: signedUrl } = await supabase.storage
@@ -123,16 +127,11 @@ exports.getAudioStatus = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        status: audioFile.processed ? 'processed' : 'processing',
-        download_url: audioFile.processed ? `/processed/${path.basename(audioFile.processedPath)}` : null
-      }
         status: data.processed ? "processed" : "processing",
         download_url,
       },
     });
   } catch (error) {
     next(error);
-  } catch (err) {
-    next(err);
   }
 };

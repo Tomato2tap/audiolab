@@ -2,7 +2,11 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const errorHandler = require('./middleware/errorHandler');
+
+// Import du middleware d'erreur correctement
+const { errorHandler } = require('./middleware/errorHandler');
+
+// Import des routes audio
 const audioRoutes = require('./routes/audioRoutes');
 
 const app = express();

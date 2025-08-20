@@ -1,43 +1,46 @@
-// backend/app.js
-const express = require("express");
-const cors = require("cors");
-const morgan = require("morgan");
-const audioRoutes = require("./routes/audioRoutes");
-const ApiError = require("./middleware/ApiError");
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+
+// Import du middleware d'erreur
+const { errorHandler } = require('./middleware/errorHandler');
+
+// Import des routes audio
+const audioRoutes = require('./routes/audioRoutes');
 
 const app = express();
 
-// Middlewares globaux
+// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(morgan("dev"));
+app.use(express.urlencoded({ extended: true }));
 
-// Routes
-app.use("/api/audio", audioRoutes);
+// Routes API
+// API routes
+app.use('/api/audio', audioRoutes);
 
-// Middleware pour 404
-app.use((req, res, next) => {
-  next(new ApiError(404, "Route non trouvée"));
+// Serve processed files
+app.use('/processed', express.static(path.join(__dirname, 'processed')));
+
+// Serve frontend static files (HTML, CSS, JS, assets)
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '../frontend');
+app.use(express.static(frontendPath));
+
+// Catch-all: for any other route, serve the frontend index.html
+// Catch-all pour le frontend
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+  if (!req.path.startsWith('/api')) {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  }
 });
 
-// Middleware global d'erreurs
-app.use((err, req, res, next) => {
-  console.error("❌ Erreur serveur:", err);
+// Error handling
+app.use(errorHandler);
 
-  // Si c’est une ApiError, on garde son code + message
-  const statusCode = err.statusCode || 500;
-  const message = err.message || "Erreur interne du serveur";
-
-  res.status(statusCode).json({
-    success: false,
-    error: message,
-  });
-});
-
-// Lancer le serveur
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
-
-module.exports = app;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

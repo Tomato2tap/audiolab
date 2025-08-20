@@ -1,35 +1,43 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const { errorHandler } = require('./middleware/errorHandler');
-const audioRoutes = require('./routes/audioRoutes');
+// backend/app.js
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+const audioRoutes = require("./routes/audioRoutes");
+const ApiError = require("./middleware/ApiError");
 
 const app = express();
 
-// 🔧 Middleware global
+// Middlewares globaux
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(morgan("dev"));
 
-// 🎵 API audio
-app.use('/api/audio', audioRoutes);
+// Routes
+app.use("/api/audio", audioRoutes);
 
-// 📂 Serve processed files
-app.use('/processed', express.static(path.join(__dirname, 'processed')));
-
-// 🌐 Serve frontend (React/Next ou autre)
-const frontendPath = path.join(__dirname, '../frontend');
-app.use(express.static(frontendPath));
-
-// 🚦 Catch-all uniquement pour le frontend
-app.get(/^(?!\/api).*/, (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
+// Middleware pour 404
+app.use((req, res, next) => {
+  next(new ApiError(404, "Route non trouvée"));
 });
 
-// ❌ Gestion des erreurs
-app.use(errorHandler);
+// Middleware global d'erreurs
+app.use((err, req, res, next) => {
+  console.error("❌ Erreur serveur:", err);
 
-// 🚀 Lancement du serveur
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+  // Si c’est une ApiError, on garde son code + message
+  const statusCode = err.statusCode || 500;
+  const message = err.message || "Erreur interne du serveur";
+
+  res.status(statusCode).json({
+    success: false,
+    error: message,
+  });
+});
+
+// Lancer le serveur
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Serveur lancé sur http://localhost:${PORT}`);
+});
+
+module.exports = app;

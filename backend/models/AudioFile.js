@@ -1,36 +1,28 @@
-const mongoose = require('mongoose');
+// backend/models/AudioFile.js
+// ✅ Version sans mongoose (compatible Supabase)
 
-const audioFileSchema = new mongoose.Schema({
-  originalName: {
-    type: String,
-    required: true
-  },
-  storedName: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  path: {
-    type: String,
-    required: true
-  },
-  processedPath: String,
-  size: {
-    type: Number,
-    required: true
-  },
-  mimetype: {
-    type: String,
-    required: true
-  },
-  processed: {
-    type: Boolean,
-    default: false
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
+class AudioFile {
+  constructor({
+    id,
+    original_name,
+    stored_name,
+    path,
+    processed_path = null,
+    size,
+    mimetype,
+    processed = false,
+    created_at = new Date(),
+  }) {
+    this.id = id;
+    this.original_name = original_name;
+    this.stored_name = stored_name;
+    this.path = path;
+    this.processed_path = processed_path;
+    this.size = size;
+    this.mimetype = mimetype;
+    this.processed = processed;
+    this.created_at = created_at;
   }
-});
+}
 
-module.exports = mongoose.model('AudioFile', audioFileSchema);
+module.exports = AudioFile;
